@@ -165,16 +165,14 @@ std::string CacheCodes::GetCode(const std::string& name, Config& cfg) {
 void WayHome::getWires(const std::string& city1, const std::string& city2) {
     json data;
 
-    std::string cityCode1 = codes.GetCode(city1, cfg);
-    std::string cityCode2 = codes.GetCode(city2, cfg);
+    string cityCode1 = codes.GetCode(city1, cfg);
+    string cityCode2 = codes.GetCode(city2, cfg);
 
     if (!cache.isDateExpired(cityCode1, cityCode2)) {
         const json& dump = cache.readFromFile(cityCode1, cityCode2);
-
         data = dump["data"];
     } else {
         Response resp = search(cityCode1, cityCode2, cfg.date);
-        
         data = json::parse(resp.text);
     }
 
@@ -208,7 +206,9 @@ void WayHome::getWires(const std::string& city1, const std::string& city2) {
 }
 
 void WayHome::print() {
-    std::cout << "-------------------\n";
+    const string line = "-------------------\n";
+
+    std::cout << line;
     for (const auto& obj : cache.wires) {
         std::cout << "Станции: " << obj.stationFromTytle << "  ->  " << obj.stationToTytle << "\n";
         if (obj.transfers.cities.empty()) {
@@ -228,6 +228,6 @@ void WayHome::print() {
             std::cout << "Без пересадок.\n";
         }
 
-        std::cout << "-------------------\n";
+        std::cout << line;
     }
 }

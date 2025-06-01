@@ -12,6 +12,13 @@ constexpr int timeOut = 3600;
 const std::string cacheDir = "/cacheForLab/";
 const std::string codesFile = "/cacheForLab/codesCache.json";
 
+#ifdef _WIN32
+    const auto homeDir = std::string(std::getenv("USERPROFILE"));
+#else
+    const auto homeDir = std::string(std::getenv("HOME"));
+#endif
+
+
 void CacheCodes::Read() {
     std::ifstream stream(homeDir + codesFile);
 
