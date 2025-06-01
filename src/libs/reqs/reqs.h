@@ -34,6 +34,15 @@ struct Wire final {
 class Cache final {
 public:
     std::vector<Wire> wires;
+    std::string homeDir;
+    
+    Cache() {
+        #ifdef _WIN32
+            homeDir = std::string(std::getenv("USERPROFILE"));
+        #else
+            homeDir = std::string(std::getenv("HOME"));
+        #endif
+    }   
 
     bool isDateExpired(const std::string&, const std::string&);
     bool isExist(const std::string&, const std::string&);
@@ -44,12 +53,19 @@ public:
 class CacheCodes final {
 public:
     nlohmann::json jsonCodes;
+    std::string homeDir;
 
     std::string GetCode(const std::string&, Config&);
     void Read();
     void Write();
 
     CacheCodes() {
+        #ifdef _WIN32
+            homeDir = std::string(std::getenv("USERPROFILE"));
+        #else
+            homeDir = std::string(std::getenv("HOME"));
+        #endif
+
         Read();
     }
 
@@ -67,7 +83,7 @@ public:
     void getWires(const std::string&, const std::string&);
     void print();
 
-    WayHome(char** argc, int argv) : cache(Cache()), cfg(Config()), codes(CacheCodes()) {   
+    WayHome(char** argc, int argv) {   
         cfg.Parse(argc, argv);    
     }
 };

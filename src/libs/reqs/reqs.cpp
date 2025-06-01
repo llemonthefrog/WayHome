@@ -9,10 +9,56 @@
 #include "../parser/parser.h"
 
 using json = nlohmann::json;
+using namespace std::chrono;
+using namespace cpr;
+using std::to_string;
+using std::string;
+
+const string yndx_url_nearest = "https://api.rasp.yandex.net/v3.0/nearest_settlement/";
+const string yndx_search_url = "https://api.rasp.yandex.net/v3.0/search";
+const string geo_url = "https://catalog.api.2gis.com/3.0/items/geocode";
+
+const auto get_coords = [](const std::string& cityName) {
+    return Get(
+        Url{ geo_url },
+        Parameters{
+            {"key", getApiKey("GEO_API")}, {"q", cityName},
+            {"fields", "items.point"}
+        }
+    );
+};
+
+const auto get_city_code = [](std::pair<float, float> coords) {
+    return Get(
+        Url{ yndx_url_nearest }, 
+        Parameters{
+            {"apikey", getApiKey("YNDX_API")}, {"lat", to_string(coords.second)}, 
+            {"lng", to_string(coords.first)}, {"distance", "1"}
+        }
+    );
+};
+
+const auto search = [](const std::string& code1, const std::string& code2, const std::string& date) {
+    return Get(
+        Url( yndx_search_url ),
+        Parameters{
+            {"apikey", getApiKey("YNDX_API")},
+            {"from", code1},
+            {"to", code2},
+            {"transfers", "true"},
+            {"date", date}
+        }
+    );
+};
+
+template <typename T>
+void assignIfNotNull(const nlohmann::json& obj, const std::string& key, T& target) {
+    if (obj.contains(key) && !obj[key].is_null()) {
+        target = obj[key].get<T>();
+    }
+}
 
 std::string parseDateTime(const std::string& datetime) {
-    using std::string;
-
     string result;
 
     size_t t_pos = datetime.find('T');
@@ -25,13 +71,6 @@ std::string parseDateTime(const std::string& datetime) {
     result += "GMT" + time_and_tz.substr(tz_pos);
 
     return result;
-}
-
-template <typename T>
-void assignIfNotNull(const nlohmann::json& obj, const std::string& key, T& target) {
-    if (obj.contains(key) && !obj[key].is_null()) {
-        target = obj[key].get<T>();
-    }
 }
 
 void Wire::set(const nlohmann::json& obj, bool dateIsPassed) {
@@ -93,46 +132,32 @@ void Wire::set(const nlohmann::json& obj, bool dateIsPassed) {
 }
 
 std::string CacheCodes::GetCode(const std::string& name, Config& cfg) {
-    using namespace cpr;
-    using std::to_string;
-
     if(jsonCodes.contains(name)) {
         return jsonCodes[name];
-    } else {
-        Response resp1 = Get(
-            Url{ "https://catalog.api.2gis.com/3.0/items/geocode" },
-            Parameters{
-                {"key", cfg.getApiKey("GEO_API")}, {"q", name},
-                {"fields", "items.point"}
-            }
-        );
-    
-        json data1 = json::parse(resp1.text);
-        std::pair<float, float> res = std::pair<float, float>(data1["result"]["items"][0]["point"]["lon"], data1["result"]["items"][0]["point"]["lat"]);
+    } 
+        
+    Response coords_resp = get_coords(name);
 
-        Response resp = Get(
-            Url{ "https://api.rasp.yandex.net/v3.0/nearest_settlement/" }, 
-            Parameters{
-                {"apikey", cfg.getApiKey("YNDX_API")}, {"lat", to_string(res.second)}, 
-                {"lng", to_string(res.first)}, {"distance", "1"}
-            }
-        );
-    
-        if(resp.status_code != 200) {
-            throw std::runtime_error("error in request to server\n" + std::to_string(resp.status_code) + "\n" + resp.error.message + "\n");
-        }
-    
-        json data = json::parse(resp.text);
-
-        jsonCodes[name] = data["code"];
-        return data["code"];
+    if(coords_resp.status_code != 200) {
+        throw std::runtime_error("error in request to server\n" + to_string(coords_resp.status_code) + "\n" + coords_resp.error.message + "\n");
     }
+    
+    json coords_data = json::parse(coords_resp.text);
+    auto coords = std::pair<float, float>(coords_data["result"]["items"][0]["point"]["lon"], coords_data["result"]["items"][0]["point"]["lat"]);
+
+    Response resp = get_city_code(coords);
+    
+    if(resp.status_code != 200) {
+        throw std::runtime_error("error in request to server\n" + to_string(resp.status_code) + "\n" + resp.error.message + "\n");
+    }
+    
+    json city_code = json::parse(resp.text);
+
+    jsonCodes[name] = city_code["code"];
+    return city_code["code"];
 }
 
 void WayHome::getWires(const std::string& city1, const std::string& city2) {
-    using namespace cpr;
-    using namespace std::chrono;
-
     json data;
 
     std::string cityCode1 = codes.GetCode(city1, cfg);
@@ -140,19 +165,15 @@ void WayHome::getWires(const std::string& city1, const std::string& city2) {
 
     if (!cache.isDateExpired(cityCode1, cityCode2)) {
         const json& dump = cache.readFromFile(cityCode1, cityCode2);
+
         data = dump["data"];
     } else {
-        Response resp = Get(
-            Url("https://api.rasp.yandex.net/v3.0/search"),
-            Parameters{
-                {"apikey", cfg.getApiKey("YNDX_API")},
-                {"from", cityCode1},
-                {"to", cityCode2},
-                {"transfers", "true"},
-                {"date", cfg.date}
-            }
-        );
+        Response resp = search(cityCode1, cityCode2, cfg.date);
 
+        if(resp.status_code != 200) {
+            throw std::runtime_error("error in request to server\n" + to_string(resp.status_code) + "\n" + resp.error.message + "\n");
+        }
+        
         data = json::parse(resp.text);
     }
 
@@ -175,12 +196,14 @@ void WayHome::getWires(const std::string& city1, const std::string& city2) {
 
     cache.wires = wires;
 
-    if (!cache.isExist(cityCode1, cityCode2)) {
-        json wrapped;
-        wrapped["data"] = data;
-        wrapped["time"] = duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
-        cache.writeInFile(wrapped, cityCode1, cityCode2);
+    if (cache.isExist(cityCode1, cityCode2)) {
+        return;
     }
+
+    json wrapped;
+    wrapped["data"] = data;
+    wrapped["time"] = duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
+    cache.writeInFile(wrapped, cityCode1, cityCode2);
 }
 
 void WayHome::print() {
