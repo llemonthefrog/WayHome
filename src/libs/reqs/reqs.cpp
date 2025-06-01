@@ -5,6 +5,7 @@
 #include "iostream"
 #include "memory"
 #include "sstream"
+#include <unordered_map>
 
 #include "../parser/parser.h"
 
@@ -14,13 +15,24 @@ using namespace cpr;
 using std::to_string;
 using std::string;
 
+const std::unordered_map<int, std::string> err_msgs = {
+    {400, "(400) - Bad request"},
+    {401, "(401) - Unauthorized"},
+    {403, "(403) - Forbiden"},
+    {404, "(404) - Not found"}
+};
+
 const string yndx_url_nearest = "https://api.rasp.yandex.net/v3.0/nearest_settlement/";
 const string yndx_search_url = "https://api.rasp.yandex.net/v3.0/search";
-const string geo_url = "https://catalog.api.2gis.com/3.0/items/geocode";
+const string geo_url = "https://api.geoapify.com/v1/geocode/search";
 
 const auto throw_if_error = [](Response& resp) {
-    if(resp.status_code != 200) {
-        throw std::runtime_error("error in request to server\n" + to_string(resp.status_code) + "\n" + resp.error.message + "\n");
+    if(err_msgs.find(resp.status_code) != err_msgs.end()) {
+        throw std::runtime_error(err_msgs.at(resp.status_code));
+    }
+
+    if(resp.status_code / 100 != 2) {
+        throw std::runtime_error("unknown error");
     }
 };
 
@@ -28,8 +40,7 @@ const auto get_coords = [](const std::string& cityName) {
     auto resp =  Get(
         Url{ geo_url },
         Parameters{
-            {"key", getApiKey("GEO_API")}, {"q", cityName},
-            {"fields", "items.point"}
+            {"apiKey", getApiKey("GEO_API")}, {"name", cityName}
         }
     );
 
@@ -153,7 +164,7 @@ std::string CacheCodes::GetCode(const std::string& name, Config& cfg) {
         
     Response coords_resp = get_coords(name);
     json coords_data = json::parse(coords_resp.text);
-    auto coords = std::pair<float, float>(coords_data["result"]["items"][0]["point"]["lon"], coords_data["result"]["items"][0]["point"]["lat"]);
+    auto coords = std::pair<float, float>(coords_data["features"][0]["properties"]["lon"], coords_data["features"][0]["properties"]["lat"]);
 
     Response resp = get_city_code(coords);
     json city_code = json::parse(resp.text);

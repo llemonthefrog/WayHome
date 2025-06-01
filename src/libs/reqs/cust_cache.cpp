@@ -18,19 +18,40 @@ const std::string codesFile = "/cacheForLab/codesCache.json";
     const auto homeDir = std::string(std::getenv("HOME"));
 #endif
 
+void CacheCodes::Read(int tr) {
+    if(tr >= 16) {
+        throw std::runtime_error("exited nubmer of tries");
+    }
 
-void CacheCodes::Read() {
     std::ifstream stream(homeDir + codesFile);
 
     if (!stream.is_open()) {
-        std::cout << "there is no existing cache for codes\nplease, restart the program\n";
+        std::cout << "There is no existing cache for codes\ncreating...\n";
+
+        if(!fs::exists(homeDir + cacheDir)) {
+            fs::create_directory(homeDir + cacheDir);
+        }
+
         std::ofstream ostream(homeDir + codesFile);
         nlohmann::json jsn;
         jsn["Санкт-Петербург"] = "c2";
 
         ostream << jsn.dump(4);
         ostream.close();
-        exit(0);
+        Read(tr+1);
+        return;
+    }
+
+    if (stream.peek() == std::ifstream::traits_type::eof()) {
+        std::cout << "Cache is empty, writing cache...\n";
+        nlohmann::json jsn;
+        jsn["Санкт-Петербург"] = "c2";
+        stream.close();
+        std::ofstream ostream(homeDir + codesFile);
+        ostream << jsn.dump(4);
+        ostream.close();
+        Read(tr+1);
+        return;
     }
 
     stream >> jsonCodes;

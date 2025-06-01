@@ -46,7 +46,7 @@ public:
     nlohmann::json jsonCodes;
 
     std::string GetCode(const std::string&, Config&);
-    void Read();
+    void Read(int=0);
     void Write();
 
     CacheCodes() {
