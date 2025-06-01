@@ -11,6 +11,4 @@ public:
     std::string cityTo;
 
     void Parse(char**, int);
-
-    Config() = default;
 };

@@ -67,8 +67,7 @@ void Cache::writeInFile(const nlohmann::json& js, const std::string& code1, cons
     std::ofstream stream(homeDir + cacheDir + code1 + "-" + code2 + ".json");
 
     if (!stream.is_open()) {
-        std::cout << "error in writing file\n";
-        return;
+        throw std::runtime_error("error in writing file\n");
     }
 
     stream << js.dump(4);
@@ -76,13 +75,12 @@ void Cache::writeInFile(const nlohmann::json& js, const std::string& code1, cons
 }
 
 nlohmann::json Cache::readFromFile(const std::string& code1, const std::string& code2) {
-    nlohmann::json obj;
-
     std::ifstream stream(homeDir + cacheDir + code1 + "-" + code2 + ".json");
     if (!stream.is_open()) {
-        std::cout << "error in reading file\n";
-        return obj;
+        throw std::runtime_error("error in reading file\n");
     }
+
+    nlohmann::json obj;
 
     stream >> obj;
     stream.close();

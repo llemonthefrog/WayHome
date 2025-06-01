@@ -18,28 +18,40 @@ const string yndx_url_nearest = "https://api.rasp.yandex.net/v3.0/nearest_settle
 const string yndx_search_url = "https://api.rasp.yandex.net/v3.0/search";
 const string geo_url = "https://catalog.api.2gis.com/3.0/items/geocode";
 
+const auto throw_if_error = [](Response& resp) {
+    if(resp.status_code != 200) {
+        throw std::runtime_error("error in request to server\n" + to_string(resp.status_code) + "\n" + resp.error.message + "\n");
+    }
+};
+
 const auto get_coords = [](const std::string& cityName) {
-    return Get(
+    auto resp =  Get(
         Url{ geo_url },
         Parameters{
             {"key", getApiKey("GEO_API")}, {"q", cityName},
             {"fields", "items.point"}
         }
     );
+
+    throw_if_error(resp);
+    return resp;
 };
 
 const auto get_city_code = [](std::pair<float, float> coords) {
-    return Get(
+    auto resp = Get(
         Url{ yndx_url_nearest }, 
         Parameters{
             {"apikey", getApiKey("YNDX_API")}, {"lat", to_string(coords.second)}, 
             {"lng", to_string(coords.first)}, {"distance", "1"}
         }
     );
+
+    throw_if_error(resp);
+    return resp;
 };
 
 const auto search = [](const std::string& code1, const std::string& code2, const std::string& date) {
-    return Get(
+    auto resp = Get(
         Url( yndx_search_url ),
         Parameters{
             {"apikey", getApiKey("YNDX_API")},
@@ -49,6 +61,9 @@ const auto search = [](const std::string& code1, const std::string& code2, const
             {"date", date}
         }
     );
+
+    throw_if_error(resp);
+    return resp;
 };
 
 template <typename T>
@@ -137,20 +152,10 @@ std::string CacheCodes::GetCode(const std::string& name, Config& cfg) {
     } 
         
     Response coords_resp = get_coords(name);
-
-    if(coords_resp.status_code != 200) {
-        throw std::runtime_error("error in request to server\n" + to_string(coords_resp.status_code) + "\n" + coords_resp.error.message + "\n");
-    }
-    
     json coords_data = json::parse(coords_resp.text);
     auto coords = std::pair<float, float>(coords_data["result"]["items"][0]["point"]["lon"], coords_data["result"]["items"][0]["point"]["lat"]);
 
     Response resp = get_city_code(coords);
-    
-    if(resp.status_code != 200) {
-        throw std::runtime_error("error in request to server\n" + to_string(resp.status_code) + "\n" + resp.error.message + "\n");
-    }
-    
     json city_code = json::parse(resp.text);
 
     jsonCodes[name] = city_code["code"];
@@ -169,10 +174,6 @@ void WayHome::getWires(const std::string& city1, const std::string& city2) {
         data = dump["data"];
     } else {
         Response resp = search(cityCode1, cityCode2, cfg.date);
-
-        if(resp.status_code != 200) {
-            throw std::runtime_error("error in request to server\n" + to_string(resp.status_code) + "\n" + resp.error.message + "\n");
-        }
         
         data = json::parse(resp.text);
     }
