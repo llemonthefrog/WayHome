@@ -29,6 +29,9 @@ struct Wire final {
     Transfers transfers;
 
     void set(const nlohmann::json& obj, bool dateIsPassed);
+    void setDetails(const nlohmann::json& obj);
+    void setDate(const nlohmann::json& obj, bool dateIsPassed);
+    void setTransfers(const nlohmann::json& obj);
 };
 
 class Cache final {

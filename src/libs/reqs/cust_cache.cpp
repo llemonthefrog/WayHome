@@ -6,21 +6,23 @@
 
 namespace fs = std::filesystem;
 using namespace std::chrono;
+using nlohmann::json;
+using std::string;
 
 constexpr int timeOut = 3600;
 
-const std::string cacheDir = "/cacheForLab/";
-const std::string codesFile = "/cacheForLab/codesCache.json";
+const string cacheDir = "/cacheForLab/";
+const string codesFile = "/cacheForLab/codesCache.json";
 
 #ifdef _WIN32
-    const auto homeDir = std::string(std::getenv("USERPROFILE"));
+    const auto homeDir = string(std::getenv("USERPROFILE"));
 #else
-    const auto homeDir = std::string(std::getenv("HOME"));
+    const auto homeDir = string(std::getenv("HOME"));
 #endif
 
 void CacheCodes::Read(int tr) {
     if(tr >= 16) {
-        throw std::runtime_error("exited nubmer of tries");
+        throw std::runtime_error("number of attempts exceeded");
     }
 
     std::ifstream stream(homeDir + codesFile);
@@ -33,7 +35,7 @@ void CacheCodes::Read(int tr) {
         }
 
         std::ofstream ostream(homeDir + codesFile);
-        nlohmann::json jsn;
+        json jsn;
         jsn["Санкт-Петербург"] = "c2";
 
         ostream << jsn.dump(4);
@@ -44,9 +46,10 @@ void CacheCodes::Read(int tr) {
 
     if (stream.peek() == std::ifstream::traits_type::eof()) {
         std::cout << "Cache is empty, writing cache...\n";
-        nlohmann::json jsn;
+        json jsn;
         jsn["Санкт-Петербург"] = "c2";
         stream.close();
+
         std::ofstream ostream(homeDir + codesFile);
         ostream << jsn.dump(4);
         ostream.close();
@@ -71,7 +74,7 @@ void CacheCodes::Write() {
     stream.close();
 }
 
-bool Cache::isExist(const std::string& code1, const std::string& code2) {
+bool Cache::isExist(const string& code1, const string& code2) {
     if(!fs::exists(homeDir + cacheDir)) {
         fs::create_directory(homeDir + cacheDir);
     }
@@ -79,7 +82,7 @@ bool Cache::isExist(const std::string& code1, const std::string& code2) {
     return fs::exists(homeDir + cacheDir + code1 + "-" + code2 + ".json");
 }
 
-bool Cache::isDateExpired(const std::string& code1, const std::string& code2) {
+bool Cache::isDateExpired(const string& code1, const string& code2) {
     if(!isExist(code1, code2)) {
         return true;
     }
@@ -91,7 +94,7 @@ bool Cache::isDateExpired(const std::string& code1, const std::string& code2) {
     return system_clock::to_time_t(system_clock::now()) - system_clock::to_time_t(lastRequestTime) >= timeOut;
 }
 
-void Cache::writeInFile(const nlohmann::json& js, const std::string& code1, const std::string& code2) {
+void Cache::writeInFile(const json& js, const string& code1, const string& code2) {
     std::ofstream stream(homeDir + cacheDir + code1 + "-" + code2 + ".json");
 
     if (!stream.is_open()) {
@@ -102,13 +105,13 @@ void Cache::writeInFile(const nlohmann::json& js, const std::string& code1, cons
     stream.close();
 }
 
-nlohmann::json Cache::readFromFile(const std::string& code1, const std::string& code2) {
+json Cache::readFromFile(const string& code1, const string& code2) {
     std::ifstream stream(homeDir + cacheDir + code1 + "-" + code2 + ".json");
     if (!stream.is_open()) {
         throw std::runtime_error("error in reading file\n");
     }
 
-    nlohmann::json obj;
+    json obj;
 
     stream >> obj;
     stream.close();
